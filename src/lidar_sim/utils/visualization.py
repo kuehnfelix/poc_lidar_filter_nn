@@ -40,7 +40,7 @@ class LidarVisualizer:
         self,
         show_hits: bool = True,
         show_scene: bool = True,
-        point_size: float = 3.0,
+        point_size: float = 20.0,
         hit_color: str = "white",
         title: str = "LiDAR Visualization"
     ):
@@ -70,7 +70,7 @@ class LidarVisualizer:
         visuals.XYZAxis(parent=self.view.scene)
         
         # Add grid
-        visuals.GridLines(parent=self.view.scene)
+        #visuals.GridLines(parent=self.view.scene)
         
     def set_hits(self, hits: List[Hit]):
         """
@@ -93,25 +93,33 @@ class LidarVisualizer:
         ], dtype=np.float32)
         
         if positions.size == 0:
-            # Remove existing points visual
             if self.points_visual is not None:
                 self.points_visual.parent = None
                 self.points_visual = None
             return
         
-        # Remove old points visual if exists
         if self.points_visual is not None:
             self.points_visual.parent = None
         
-        # Create new points visual
-        # "color" arg isn't supported by newer vispy versions; use face_color
+        # Create color array - white by default, colors for cone hits
+        base_color = np.array(Color(self.hit_color).rgba)
+        base_color[3] = 0.2  # Set alpha for hits
+        cone_marker_color = np.array((0, 0, 1, 1)) 
+        
+        colors = np.tile(base_color, (len(positions), 1))
+        
+        # Color cone hits differently if hit has object_type info
+        for i, hit in enumerate([h for h in hits if h.hit and h.position is not None]):
+            if hasattr(hit, 'object_type') and hit.object_type == ObjectType.CONE:
+                colors[i] = cone_marker_color
+        
         self.points_visual = visuals.Markers(
             pos=positions,
             size=self.point_size,
-            face_color=self.hit_color,
+            face_color=colors,
             edge_color=None,
             parent=self.view.scene
-        )
+        )        
         
     def set_scene(self, scene_objects: List[SceneObject]):
         """
@@ -167,6 +175,7 @@ class LidarVisualizer:
             [0, 1, 2],
             [0, 2, 3],
         ], dtype=np.uint32)
+        # Add this method to the LidarVisualizer class to handle colored hits by object
         
         mesh = visuals.Mesh(
             vertices=positions,
