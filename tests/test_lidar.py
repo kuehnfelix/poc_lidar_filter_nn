@@ -93,7 +93,7 @@ def test_scene_intersect_single_object():
     hit = scene.intersect(ray)
     
     assert hit.hit is True
-    assert hit.object_id == 0
+    assert hit.object_id == ground.object_id
 
 
 def test_scene_intersect_closest_object():
@@ -113,7 +113,7 @@ def test_scene_intersect_closest_object():
     
     assert hit.hit is True
     # Box should be closer than ground
-    assert hit.object_id == 1
+    assert hit.object_id == box.object_id
 
 
 def test_scene_intersect_miss_all():

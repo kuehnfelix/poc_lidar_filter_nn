@@ -10,6 +10,8 @@ class Scene:
         self.vehicle_pose = None
 
     def add_object(self, obj: SceneObject):
+        obj.object_id = self.next_object_id
+        self.next_object_id += 1
         self.objects.append(obj)
 
     def intersect(self, ray: Ray) -> Hit:

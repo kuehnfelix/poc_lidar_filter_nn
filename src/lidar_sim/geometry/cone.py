@@ -20,9 +20,13 @@ class ConeObject(SceneObject):
         k = self.radius / self.height
         k2 = k * k
 
-        a = rd[0]**2 + rd[1]**2 - k2 * rd[2]**2
-        b = 2 * (ro[0]*rd[0] + ro[1]*rd[1] - k2 * ro[2]*rd[2])
-        c = ro[0]**2 + ro[1]**2 - k2 * ro[2]**2
+        # Flip cone: use (h - z)
+        ro_z = self.height - ro[2]
+        rd_z = -rd[2]
+
+        a = rd[0]**2 + rd[1]**2 - k2 * rd_z**2
+        b = 2 * (ro[0]*rd[0] + ro[1]*rd[1] - k2 * ro_z*rd_z)
+        c = ro[0]**2 + ro[1]**2 - k2 * ro_z**2
 
         disc = b*b - 4*a*c
         if disc < 0:
@@ -35,15 +39,23 @@ class ConeObject(SceneObject):
         for t in sorted((t0, t1)):
             if t <= EPS:
                 continue
+
             z = ro[2] + t * rd[2]
+
+            # Now valid region is 0 <= z <= height
             if 0.0 <= z <= self.height:
                 pos = ray.origin + t * ray.direction
+
+                # Correct normal for flipped cone
                 normal = np.array([
                     pos[0] - self.position[0],
                     pos[1] - self.position[1],
-                    -k2 * (pos[2] - self.position[2])
+                    k2 * (self.height - (pos[2] - self.position[2]))
                 ])
+
                 normal /= np.linalg.norm(normal)
-                return Hit(True, t, pos, normal, self.object_id, self.object_type)
+
+                return Hit(True, t, pos, normal,
+                        self.object_id, self.object_type)
 
         return Hit(False)
