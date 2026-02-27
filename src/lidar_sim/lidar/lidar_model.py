@@ -1,6 +1,7 @@
 import numpy as np
 
 from lidar_sim.core.ray import Ray
+from lidar_sim.core.hit import Hit
 from lidar_sim.scene.scene import Scene
 from lidar_sim.lidar.scan_pattern import ScanPattern
 
@@ -15,7 +16,7 @@ class LiDARModel:
     def __init__(self, scan_pattern: ScanPattern):
         self.scan_pattern = iter(scan_pattern)
     
-    def measure_single(self, scene: Scene, vehicle_pose) -> list[Ray]:
+    def measure_single(self, scene: Scene, vehicle_pose) -> list[Hit]:
         """Generate rays for a single scan and return the resulting hits."""
         rays = self.generate_rays(vehicle_pose)
         hits = [scene.intersect(ray) for ray in rays]

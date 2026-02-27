@@ -1,10 +1,10 @@
 """Playground for testing LiDAR model and visualization."""
 import numpy as np
-import matplotlib.pyplot as plt
 
 from lidar_sim.lidar.lidar_model import LiDARModel
 from lidar_sim.lidar.elliptic_scan_pattern import EllipticScanPattern
 from lidar_sim.scene.scene_generator import SceneGenerator
+from lidar_sim.utils.visualization import LidarVisualizer, visualize_hits
 
 
 
@@ -13,27 +13,17 @@ if __name__ == "__main__":
     sceneGenerator = SceneGenerator(None, None)
     scene = sceneGenerator.generate_scene()
     
-    print(scene.objects)
-
-
-    plt.xlim(-50, 50)
-    plt.ylim(0, 100)
-    plt.axes().set_aspect('equal', adjustable='box')
-    plt.xlabel("X")
-    plt.ylabel("Y")
-    plt.title("LiDAR Scan Pattern")
-    plt.grid()
-    
-    positions = np.empty((0, 2))
     
     lidar_pose = np.eye(4)
-    lidar_pose[2, 3] = 1.0
+    lidar_pose[2, 3] = 1.2
     # Rotate 10 degrees down around y-axis
     angle = np.radians(10)
     lidar_pose[0, 0] = np.cos(angle)
     lidar_pose[0, 2] = np.sin(angle)
     lidar_pose[2, 0] = -np.sin(angle)
     lidar_pose[2, 2] = np.cos(angle)
+    
+    all_hits = []
     
     while True:
         try:
@@ -42,13 +32,17 @@ if __name__ == "__main__":
             print("Scan pattern exhausted.")
             break
         
-        hit_positions = np.array([hit.position for hit in hits if hit.hit])
+        all_hits.extend(hits)
         
-        if hit_positions.size == 0:
-            continue
-        
-        positions = np.vstack((positions, hit_positions[:, :2]))
-        
-    plt.scatter(positions[:, 1], positions[:, 0], s=1, c='blue', label='Hits')
-    plt.legend()
-    plt.show()
+    
+    # Option 1: Quick visualization with convenience function
+    # Uncomment to visualize:
+    # visualize_hits(all_hits, scene_objects=scene.objects)
+    
+    # Option 2: Interactive visualizer with updates
+    # Uncomment to use:
+    viz = LidarVisualizer(show_hits=True, show_scene=True, point_size=4.0)
+    viz.set_hits(all_hits)
+    # viz.set_scene(scene.objects)
+    viz.show()
+    
