@@ -28,3 +28,6 @@ class Ray:
     def point_at(self, t: float) -> np.ndarray:
         """Return the point along the ray at parameter ``t``."""
         return self.origin + t * self.direction
+
+    def __repr__(self):
+        return f"Ray(origin={self.origin}, azimuth={np.rad2deg(self.azimuth)}, elevation={np.rad2deg(self.elevation)}, direction={self.direction})"
