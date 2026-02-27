@@ -1,22 +1,25 @@
 import numpy as np
 
 from lidar_sim.core.ray import Ray
+from lidar_sim.scene.scene import Scene
+from lidar_sim.lidar.scan_pattern import ScanPattern
 
 class LiDARModel:
-    azimuth_start_ch1   = -60 * np.pi / 180
-    azimuth_end_ch1     = -35 * np.pi / 180
-    azimuth_start_ch2   = -36.25 * np.pi / 180
-    azimuth_end_ch2     = 11.25 * np.pi / 180
-    azimuth_start_ch3   = -12.5 * np.pi / 180
-    azimuth_end_ch3     = 12.5 * np.pi / 180
-    azimuth_start_ch4   = 11.25 * np.pi / 180
-    azimuth_end_ch4     = 36.25 * np.pi / 180
-    azimuth_start_ch5   = 35 * np.pi / 180
-    azimuth_end_ch5     = 60 * np.pi / 180
+    ch1_angle = np.deg2rad(-48)
+    ch2_angle = np.deg2rad(-24)
+    ch3_angle = np.deg2rad(0.0)
+    ch4_angle = np.deg2rad(24)
+    ch5_angle = np.deg2rad(48)
+    channels = [ch1_angle, ch2_angle, ch3_angle, ch4_angle, ch5_angle]
 
-    def __init__(self, angles, noise_params):
-        self.angles = angles        # list of (az, el)
-        self.noise = noise_params
+    def __init__(self, scan_pattern: ScanPattern):
+        self.scan_pattern = iter(scan_pattern)
+    
+    def measure_single(self, scene: Scene, vehicle_pose) -> list[Ray]:
+        """Generate rays for a single scan and return the resulting hits."""
+        rays = self.generate_rays(vehicle_pose)
+        hits = [scene.intersect(ray) for ray in rays]
+        return hits
 
     def generate_rays(self, vehicle_pose) -> list[Ray]:
         """Return a list of rays expressed in world coordinates.
@@ -43,13 +46,19 @@ class LiDARModel:
         rotation = pose[:3, :3]
 
         rays: list[Ray] = []
-        for az, el in self.angles:
-            # direction in sensor (vehicle) coordinates
+        
+        azimuth, elevation = next(self.scan_pattern)
+        
+        for channel in self.channels:
+            az = azimuth + channel
+            el = elevation
+        
             x = np.cos(el) * np.cos(az)
             y = np.cos(el) * np.sin(az)
             z = np.sin(el)
             local_dir = np.array([x, y, z], dtype=float)
+            
             world_dir = rotation @ local_dir
-            rays.append(Ray(origin, world_dir))
+            rays.append(Ray(origin, az, el, world_dir))
 
         return rays

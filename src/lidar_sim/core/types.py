@@ -5,6 +5,4 @@ class ObjectType(IntEnum):
     CONE = 1
     CYLINDER = 2
     BOX = 3
-    FENCE = 4
-    VEHICLE = 5
     UNKNOWN = 255

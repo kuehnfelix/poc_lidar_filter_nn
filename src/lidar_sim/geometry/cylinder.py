@@ -14,37 +14,50 @@ class CylinderObject(SceneObject):
 
     def intersect(self, ray: Ray) -> Hit:
         EPS = 1e-6
+        closest_hit = Hit(False)
+        closest_t = float('inf')
 
+        # Check cylinder side
         ro = ray.origin - self.base
         rd = ray.direction
 
         a = rd[0]**2 + rd[1]**2
 
-        if abs(a) < EPS:
-            return Hit(False)
+        if abs(a) >= EPS:
+            b = 2 * (ro[0]*rd[0] + ro[1]*rd[1])
+            c = ro[0]**2 + ro[1]**2 - self.radius**2
 
-        b = 2 * (ro[0]*rd[0] + ro[1]*rd[1])
-        c = ro[0]**2 + ro[1]**2 - self.radius**2
+            disc = b*b - 4*a*c
+            if disc >= 0:
+                sqrt_disc = np.sqrt(disc)
+                t0 = (-b - sqrt_disc) / (2*a)
+                t1 = (-b + sqrt_disc) / (2*a)
 
-        disc = b*b - 4*a*c
-        if disc < 0:
-            return Hit(False)
+                for t in sorted((t0, t1)):
+                    if t > EPS and t < closest_t:
+                        z = ro[2] + t * rd[2]
+                        if 0.0 <= z <= self.height:
+                            pos = ray.origin + t * ray.direction
+                            normal = np.array([pos[0]-self.base[0], pos[1]-self.base[1], 0.0])
+                            normal /= np.linalg.norm(normal)
+                            closest_hit = Hit(True, t, pos, normal, self.object_id, self.object_type)
+                            closest_t = t
 
-        sqrt_disc = np.sqrt(disc)
-        t0 = (-b - sqrt_disc) / (2*a)
-        t1 = (-b + sqrt_disc) / (2*a)
-
-        for t in sorted((t0, t1)):
-            if t <= EPS:
-                continue
-            z = ro[2] + t * rd[2]
-            if 0.0 <= z <= self.height:
+        # Check bottom cap (z = 0)
+        if abs(rd[2]) > EPS:
+            t = -ro[2] / rd[2]
+            if t > EPS and t < closest_t:
                 pos = ray.origin + t * ray.direction
-                normal = np.array([pos[0]-self.base[0],
-                                pos[1]-self.base[1],
-                                0.0])
-                normal /= np.linalg.norm(normal)
-                return Hit(True, t, pos, normal, self.object_id, self.object_type)
+                if np.linalg.norm(pos[:2] - self.base[:2]) <= self.radius:
+                    closest_hit = Hit(True, t, pos, np.array([0, 0, -1]), self.object_id, self.object_type)
+                    closest_t = t
 
-        return Hit(False)
-  
+        # Check top cap (z = height)
+        if abs(rd[2]) > EPS:
+            t = (self.height - ro[2]) / rd[2]
+            if t > EPS and t < closest_t:
+                pos = ray.origin + t * ray.direction
+                if np.linalg.norm(pos[:2] - self.base[:2]) <= self.radius:
+                    closest_hit = Hit(True, t, pos, np.array([0, 0, 1]), self.object_id, self.object_type)
+
+        return closest_hit

@@ -1,4 +1,5 @@
 from lidar_sim.scene.scene import Scene
+from lidar_sim.geometry.ground import GroundPlane
 
 class SceneGenerator:
     def __init__(self, track_generator, obstacle_config):
@@ -15,7 +16,8 @@ class SceneGenerator:
 
 # TODO: Implement the following methods
     def _add_ground(self, scene: Scene):
-        pass  # --- IGNORE ---  
+        scene.add_object(GroundPlane())
+        
     def _add_track_cones(self, scene: Scene):
         pass  # --- IGNORE ---
     def _add_obstacles(self, scene: Scene):
