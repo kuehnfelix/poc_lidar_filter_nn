@@ -3,13 +3,14 @@ import numpy as np
 
 from lidar_sim.lidar.lidar_model import LiDARModel
 from lidar_sim.lidar.elliptic_scan_pattern import EllipticScanPattern
+from lidar_sim.lidar.zig_zag_scan_pattern import ZigZagScanPattern
 from lidar_sim.scene.scene_generator import SceneGenerator
 from lidar_sim.utils.visualization import LidarVisualizer, visualize_hits
 
 
 
 if __name__ == "__main__":
-    model = LiDARModel(scan_pattern=EllipticScanPattern())
+    model = LiDARModel(scan_pattern=ZigZagScanPattern())
     sceneGenerator = SceneGenerator(None, None)
     scene = sceneGenerator.generate_scene()
     
@@ -41,7 +42,7 @@ if __name__ == "__main__":
     
     # Option 2: Interactive visualizer with updates
     # Uncomment to use:
-    viz = LidarVisualizer(show_hits=True, show_scene=True, point_size=4.0)
+    viz = LidarVisualizer(show_hits=True, show_scene=True, point_size=8.0)
     viz.set_hits(all_hits)
     # viz.set_scene(scene.objects)
     viz.show()
