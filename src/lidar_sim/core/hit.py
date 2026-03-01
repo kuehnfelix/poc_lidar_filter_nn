@@ -1,7 +1,7 @@
 import numpy as np
 
 class Hit:
-    def __init__(self, hit=False, distance=np.inf, position=None, normal=None,
+    def __init__(self, hit, distance=0, position=None, normal=None,
                  object_id=-1, object_type=None):
         self.hit = hit
         self.distance = distance

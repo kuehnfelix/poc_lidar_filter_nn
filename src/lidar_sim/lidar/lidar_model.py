@@ -20,7 +20,7 @@ class LiDARModel:
         """Generate rays for a single scan and return the resulting hits."""
         rays = self.generate_rays(vehicle_pose)
         hits = [scene.intersect(ray) for ray in rays]
-        return hits
+        return hits, rays
 
     def generate_rays(self, vehicle_pose) -> list[Ray]:
         """Return a list of rays expressed in world coordinates.

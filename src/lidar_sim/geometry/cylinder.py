@@ -42,22 +42,24 @@ class CylinderObject(SceneObject):
                             normal /= np.linalg.norm(normal)
                             closest_hit = Hit(True, t, pos, normal, self.object_id, self.object_type)
                             closest_t = t
+                            break  # closest t already found, no need to check t1
 
-        # Check bottom cap (z = 0)
+        # Check bottom cap (z = base[2] in world space)
         if abs(rd[2]) > EPS:
             t = -ro[2] / rd[2]
             if t > EPS and t < closest_t:
                 pos = ray.origin + t * ray.direction
-                if np.linalg.norm(pos[:2] - self.base[:2]) <= self.radius:
-                    closest_hit = Hit(True, t, pos, np.array([0, 0, -1]), self.object_id, self.object_type)
+                if (pos[0]-self.base[0])**2 + (pos[1]-self.base[1])**2 <= self.radius**2:
+                    closest_hit = Hit(True, t, pos, np.array([0.0, 0.0, -1.0]), self.object_id, self.object_type)
                     closest_t = t
 
-        # Check top cap (z = height)
+        # Check top cap
         if abs(rd[2]) > EPS:
             t = (self.height - ro[2]) / rd[2]
             if t > EPS and t < closest_t:
                 pos = ray.origin + t * ray.direction
-                if np.linalg.norm(pos[:2] - self.base[:2]) <= self.radius:
-                    closest_hit = Hit(True, t, pos, np.array([0, 0, 1]), self.object_id, self.object_type)
+                if (pos[0]-self.base[0])**2 + (pos[1]-self.base[1])**2 <= self.radius**2:
+                    closest_hit = Hit(True, t, pos, np.array([0.0, 0.0, 1.0]), self.object_id, self.object_type)
+                    closest_t = t  # ← fix: was missing in original
 
         return closest_hit

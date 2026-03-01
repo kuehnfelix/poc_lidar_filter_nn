@@ -4,6 +4,7 @@ import random
 import numpy as np
 from scipy import interpolate, signal
 from scipy.interpolate import BSpline
+from scipy.integrate import cumulative_trapezoid
 from enum import Enum
 
 from shapely import Polygon, Point
@@ -59,6 +60,10 @@ class Track:
         self._max_bound = max_bound   
         self._n_points = n_points  
         self._n_regions = n_regions
+        
+        self._cones = self._orange_cones.copy()
+        
+        self.track_bounds = None
 
         # if spline not None calculate rest
         if self._spline:
@@ -176,7 +181,26 @@ class Track:
 
             return self
 
+    def pose_at_arc_length(self, s: float):
+        """
+        Returns unit tangent vector at arc length s
+        along the polygon exterior boundary.
+        """
+        line = self.centerline_points.exterior
+        length = line.length
+        
+        s = s % length
+        
+        eps = 1e-6 * length
 
+        p1 = line.interpolate(s)
+        p2 = line.interpolate(min(s + eps, length))
+
+        dx = p2.x - p1.x
+        dy = p2.y - p1.y
+
+        angle = math.atan2(dy, dx)
+        return p1.x, p1.y, angle
 
     def calculate_track(self):
         """ 
@@ -236,7 +260,7 @@ class Track:
         # Translate and rotate track to origin
         M = transformation_matrix((-start_position[0].x, -start_position[0].y), start_heading)
 
-        self._cones = []
+        self._cones = self._orange_cones.copy()
 
         def check_near_orange_cone(c):
             for oc in self._orange_cones:
@@ -251,7 +275,6 @@ class Track:
             if not check_near_orange_cone(c):
                 self._cones.append(Cone(Color.YELLOW, c[0], c[1]))
 
-        # Triangulation
         outer_polygon = Polygon( (M.dot(np.c_[cones_left, np.ones(len(cones_left))].T)[:-1].T).tolist())
         inner_polygon = Polygon((M.dot(np.c_[cones_right, np.ones(len(cones_right))].T)[:-1].T).tolist())
 
@@ -264,8 +287,6 @@ class Track:
                 pnt = Point(random.uniform(minx, maxx), random.uniform(miny, maxy))
                 if polygon.contains(pnt) == inner:
                     return([pnt.x, pnt.y])
-
-
         
         inner_len = len(cones_left)
         outer_len = len(cones_right)
@@ -280,13 +301,18 @@ class Track:
                       + outer_segments,
             'holes': [find_inner_or_outer_point(inner_polygon, True), find_inner_or_outer_point(outer_polygon, False)]
         }
-        
-        for c in self._orange_cones:
-             self._cones.append(c)
 
         self._centerline_points = Polygon((M.dot(np.c_[centerline_points, np.ones(len(centerline_points))].T)[:-1].T).tolist())
+        
+        self.track_bounds = (outer_polygon.bounds[0], outer_polygon.bounds[2], outer_polygon.bounds[1], outer_polygon.bounds[3])
 
         return self
+
+
+    def distance_to_centerline(self, x, y):
+        """Calculates the distance from a point to the centerline of the track."""
+        point = Point(x, y)
+        return self._centerline_points.exterior.distance(point)
 
 
     def curvature(self):

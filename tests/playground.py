@@ -1,28 +1,28 @@
 """Playground for testing LiDAR model and visualization."""
 import numpy as np
+import matplotlib.pyplot as plt
 
 from lidar_sim.lidar.lidar_model import LiDARModel
 from lidar_sim.lidar.elliptic_scan_pattern import EllipticScanPattern
 from lidar_sim.lidar.zig_zag_scan_pattern import ZigZagScanPattern
 from lidar_sim.scene.scene_generator import SceneGenerator
+from lidar_sim.scene.track import Track
 from lidar_sim.utils.visualization import LidarVisualizer, visualize_hits
 
 
 
 if __name__ == "__main__":
+    
     model = LiDARModel(scan_pattern=ZigZagScanPattern())
     sceneGenerator = SceneGenerator(None, None)
     scene = sceneGenerator.generate_scene()
     
+    x, y, car_angle = sceneGenerator.track.pose_at_arc_length(0)
+
+    z = 1
     
-    lidar_pose = np.eye(4)
-    lidar_pose[2, 3] = 1.2
-    # Rotate 10 degrees down around y-axis
-    angle = np.radians(10)
-    lidar_pose[0, 0] = np.cos(angle)
-    lidar_pose[0, 2] = np.sin(angle)
-    lidar_pose[2, 0] = -np.sin(angle)
-    lidar_pose[2, 2] = np.cos(angle)
+    lidar_pose = sceneGenerator.sample_lidar_pose(progress_along_track=0.0)
+    
     
     all_hits = []
     
