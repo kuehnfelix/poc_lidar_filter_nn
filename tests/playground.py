@@ -1,49 +1,28 @@
-"""Playground for testing LiDAR model and visualization."""
+import time
 import numpy as np
 import matplotlib.pyplot as plt
 
-from lidar_sim.lidar.lidar_model import LiDARModel
-from lidar_sim.lidar.elliptic_scan_pattern import EllipticScanPattern
-from lidar_sim.lidar.zig_zag_scan_pattern import ZigZagScanPattern
-from lidar_sim.scene.scene_generator import SceneGenerator
-from lidar_sim.scene.track import Track
-from lidar_sim.utils.visualization import LidarVisualizer, visualize_hits
-
-
+from neural_net.cone_detector import ConeDetector
 
 if __name__ == "__main__":
     
-    model = LiDARModel(scan_pattern=ZigZagScanPattern())
-    sceneGenerator = SceneGenerator(None, None)
-    scene = sceneGenerator.generate_scene()
-    
-    x, y, car_angle = sceneGenerator.track.pose_at_arc_length(0)
-
-    z = 1
-    
-    lidar_pose = sceneGenerator.sample_lidar_pose(progress_along_track=0.0)
-    
-    
-    all_hits = []
-    
-    while True:
-        try:
-            hits = model.measure_single(scene, lidar_pose)
-        except StopIteration:
-            print("Scan pattern exhausted.")
-            break
+    detector = ConeDetector("model_conv.pt")
+    for i in range(30, 200):
+        frame = i
+        path = f"dataset/track_00/frame_{frame:03d}.npz"
+        file = np.load(path)
+        data = file["data"]  # (600, 125, 3)
+        labels = file["labels"]  # (600, 125)
+        print(f"Loaded {data.shape[0]} packets from {path}")    
         
-        all_hits.extend(hits)
-        
-    
-    # Option 1: Quick visualization with convenience function
-    # Uncomment to visualize:
-    # visualize_hits(all_hits, scene_objects=scene.objects)
-    
-    # Option 2: Interactive visualizer with updates
-    # Uncomment to use:
-    viz = LidarVisualizer(show_hits=True, show_scene=True, point_size=8.0)
-    viz.set_hits(all_hits)
-    # viz.set_scene(scene.objects)
-    viz.show()
-    
+        total_time = 0
+        for packet, label in zip(data, labels):
+            start = time.time()
+            mask = detector.predict(packet)  # (125,) bool array
+            total_time += time.time() - start
+            plt.scatter(packet[:,0], packet[:,1], c=mask, cmap="coolwarm", s=20)
+            
+            
+        plt.title(f"Cone Detection (Total time: {total_time:.2f}s)")
+        plt.axis((-1.2, 1.2, -0.5, 0.5))
+        plt.show()

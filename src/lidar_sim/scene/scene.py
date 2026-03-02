@@ -1,4 +1,5 @@
 import numpy as np
+from concurrent.futures import ThreadPoolExecutor
 from lidar_sim.geometry.scene_object import SceneObject
 from lidar_sim.core.ray import Ray
 from lidar_sim.core.hit import Hit
@@ -9,6 +10,7 @@ class Scene:
         self.objects: list[SceneObject] = []
         self.next_object_id = 1
         self.vehicle_pose = None
+        self._executor = ThreadPoolExecutor()
 
     def add_object(self, obj: SceneObject):
         obj.object_id = self.next_object_id
@@ -24,8 +26,15 @@ class Scene:
         best_obj_id    = np.full(N, -1, dtype=int)
         best_obj_type  = np.full(N, -1, dtype=int)
 
-        for obj in self.objects:
-            distances, positions, normals, mask = obj.intersect_batch(origins, directions)
+        # submit all objects in parallel — NumPy releases the GIL so threads run truly concurrently
+        futures = {
+            self._executor.submit(obj.intersect_batch, origins, directions): obj
+            for obj in self.objects
+        }
+
+        # merge results sequentially (cheap array indexing, no race condition)
+        for future, obj in futures.items():
+            distances, positions, normals, mask = future.result()
             closer = mask & (distances < best_distances)
             best_distances[closer] = distances[closer]
             best_positions[closer] = positions[closer]

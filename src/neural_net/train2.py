@@ -17,7 +17,7 @@ import glob
 import numpy as np
 import torch
 from torch.utils.data import Dataset, DataLoader, WeightedRandomSampler, random_split
-from neural_net.model import MiniPointNet, PointNetLoss
+from neural_net.model2 import MiniPointNet, PointNetLoss, DilatedConvNet
 
 
 # ── Dataset ────────────────────────────────────────────────────────────────────
@@ -32,7 +32,7 @@ class LiDARPacketDataset(Dataset):
             data   = f["data"].astype(np.float32)    # (600, 125, 3)
             labels = f["labels"].astype(np.float32)  # (600, 125)
             for data_packet, label_packet in zip(data, labels):
-                if np.sum(label_packet) == 0 and np.random.rand() > 0.01:
+                if np.sum(label_packet) == 0 and np.random.rand() > 0.1:
                     continue
                 self.samples.append((data_packet, label_packet))
                 self.has_cone.append(bool(label_packet.any()))
@@ -66,7 +66,7 @@ def train(
     oversample_factor = 10,
     threshold         = 0.3,
     val_split         = 0.1,
-    save_path         = "model.pt",
+    save_path         = "model_conv.pt",
     resume            = None,    # set to "model.pt" to continue from checkpoint
 ):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -88,7 +88,7 @@ def train(
     val_loader   = DataLoader(val_ds,   batch_size=batch_size, shuffle=False,    num_workers=4, pin_memory=True)
 
     # model, optimizer, scheduler
-    model     = MiniPointNet().to(device)
+    model     = DilatedConvNet().to(device)
     criterion = PointNetLoss(pos_weight=pos_weight).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=4, factor=0.5)
@@ -166,4 +166,4 @@ def train(
 
 
 if __name__ == "__main__":
-    train(resume="model.pt", lr=1e-4, epochs=2000)
+    train(resume="model_conv.pt", lr=1e-5, epochs=500)
