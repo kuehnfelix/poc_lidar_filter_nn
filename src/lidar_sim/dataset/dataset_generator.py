@@ -88,4 +88,4 @@ class DatasetGenerator:
 
 if __name__ == "__main__":
     generator = DatasetGenerator()
-    generator.generate_dataset(num_tracks=2, frames_per_track=100)
+    generator.generate_dataset(num_tracks=10, frames_per_track=200)
