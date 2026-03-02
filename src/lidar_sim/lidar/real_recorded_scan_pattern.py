@@ -19,37 +19,6 @@ from typing import Iterator, Tuple
 from lidar_sim.lidar.scan_pattern import ScanPattern
 
 
-def _fix_invalid(az: np.ndarray, el: np.ndarray, dist: np.ndarray):
-    """
-    Replace invalid points (dist==0 or NaN in az/el) with linear interpolation
-    along the point axis within each packet.
-
-    az, el, dist: (N_packets, 125)
-    returns: az, el with invalids filled
-    """
-    invalid = (dist == 0) | np.isnan(az) | np.isnan(el) | \
-              np.isnan(dist) | (dist < 0)
-
-    az = az.copy()
-    el = el.copy()
-    indices = np.arange(125)
-
-    for pkt_idx in range(az.shape[0]):
-        inv = invalid[pkt_idx]
-        if not inv.any():
-            continue
-        if inv.all():
-            continue  # entire packet invalid — leave as-is
-
-        valid_idx = np.where(~inv)[0]
-
-        # np.interp does linear interp and clamps at edges (nearest extrapolation)
-        az[pkt_idx] = np.interp(indices, valid_idx, az[pkt_idx, valid_idx])
-        el[pkt_idx] = np.interp(indices, valid_idx, el[pkt_idx, valid_idx])
-
-    return az, el
-
-
 class RealRecordedScanPattern(ScanPattern):
     """
     Loads all recorded .npz frames and uses their az/el as scan directions.
@@ -80,12 +49,11 @@ class RealRecordedScanPattern(ScanPattern):
             n_invalid_total += ((dist == 0) | np.isnan(dist)).sum()
             n_points_total  += dist.size
 
-            az_fixed, el_fixed = _fix_invalid(az, el, dist)
-            self.frames.append(np.stack([az_fixed, el_fixed], axis=-1))  # (600, 125, 2)
+            self.frames.append(np.stack([az, el], axis=-1))  # (600, 125, 2)
 
         print(f"RealRecordedScanPattern: loaded {len(self.frames)} frames "
               f"from {dataset_dir}")
-        print(f"  Invalid points fixed: "
+        print(f"  Invalid points found: "
               f"{n_invalid_total:,} / {n_points_total:,} "
               f"({n_invalid_total/n_points_total:.1%})")
 
@@ -104,9 +72,13 @@ class RealRecordedScanPattern(ScanPattern):
         frame = self.frames[np.random.randint(len(self.frames))]
         # frame: (600, 125, 2)
 
+        output = []
+
         for pkt_idx in range(600):
             for block_idx in range(25):
-                pts = frame[pkt_idx, block_idx*5 : block_idx*5+5]  # (5, 2)
-                az_centre = float(pts[:, 0].mean())
-                el_centre = float(pts[:, 1].mean())
-                yield (az_centre, el_centre)
+                output = []
+                for ch_idx in range(5):
+                    point = frame[pkt_idx, block_idx + ch_idx*25]
+                    output.append(point)
+
+                yield output

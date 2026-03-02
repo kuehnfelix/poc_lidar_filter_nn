@@ -26,7 +26,7 @@ class GroundPlane(SceneObject):
 
         dz = directions[:, 2]
         valid = np.abs(dz) >= EPS
-
+        
         t = np.where(valid, (self.z - origins[:, 2]) / np.where(valid, dz, 1.0), -1.0)
         valid &= t >= EPS
 

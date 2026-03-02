@@ -4,13 +4,23 @@ import matplotlib.pyplot as plt
 
 from neural_net.inference import ConeDetector
 
-if __name__ == "__main__":
+def main():
+    
+
+  
+    
+    path = "dataset/track_07/frame_000.npz"
+    file = np.load(path)
+    data = file['data']
+    labels = file['labels']
+    
+    visualise_frame(data, labels, path)
     
    
     detector = ConeDetector('checkpoints/wide_conv_5ch.pt', device='cuda')
     for i in range(200):
         frame = i
-        path = f"dataset/track_01/frame_{frame:03d}.npz"
+        path = f"dataset/track_07/frame_{frame:03d}.npz"
         file = np.load(path)
         data = file["data"]  # (600, 125, 3)
         labels = file["labels"]  # (600, 125)
@@ -40,3 +50,14 @@ if __name__ == "__main__":
         
 
         plt.show()
+    
+
+def visualise_frame(data, labels, title="LiDAR frame"):
+    plt.title(title)
+    plt.scatter(data[:,  :, 0].flatten(), data[:, :, 1].flatten(), c=labels.flatten(), cmap="coolwarm", s=20)
+    plt.axis((-1.2, 1.2, -0.5, 0.5))    
+
+    plt.show()
+
+if __name__ == "__main__":
+    main()

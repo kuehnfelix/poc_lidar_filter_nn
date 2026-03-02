@@ -50,11 +50,11 @@ class DatasetGenerator:
         self.scene = self.scene_generator.generate_scene()
 
     def generate_one_frame(self, progress_along_track):
-        lateral_error  = np.random.normal(0, 0.5)
-        angular_error  = np.random.normal(0, np.deg2rad(20))
-        height_error   = np.random.normal(0, 0.2)
+        lateral_error  = np.random.normal(0, 0.3)
+        angular_error  = np.random.normal(0, np.deg2rad(10))
+        height_error   = np.random.normal(0, 0.1)
         height         = 1.0 + height_error
-        lidar_angle    = np.radians(10) + np.random.normal(0, np.deg2rad(3))
+        lidar_angle    = np.radians(10) + np.random.normal(0, np.deg2rad(2))
 
         lidar_pose = self.scene_generator.sample_lidar_pose(
             progress_along_track, lateral_error, angular_error, height, lidar_angle

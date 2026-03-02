@@ -8,15 +8,9 @@ from lidar_sim.lidar.zig_zag_scan_pattern import ZigZagScanPattern
 
 
 class LiDARModel:
-    ch1_angle = np.deg2rad(-48)
-    ch2_angle = np.deg2rad(-24)
-    ch3_angle = np.deg2rad(0.0)
-    ch4_angle = np.deg2rad(24)
-    ch5_angle = np.deg2rad(48)
-    channels = np.array([ch1_angle, ch2_angle, ch3_angle, ch4_angle, ch5_angle])  # (5,)
-
     def __init__(self, scan_pattern: ScanPattern):
-        self.scan_pattern = iter(scan_pattern)
+        self.scan_pattern = scan_pattern
+        self.it_scan = iter(self.scan_pattern)
 
     def measure_single(self, scene: Scene, vehicle_pose) -> tuple:
         """5 rays for a single azimuth/elevation step."""
@@ -28,17 +22,15 @@ class LiDARModel:
 
     def measure_frame(self, scene: Scene, vehicle_pose) -> tuple:
         """All 15000 scan steps x 5 channels = 75000 rays, fired at once."""
+        self.it_scan = iter(self.scan_pattern)
+        
         pose = np.asarray(vehicle_pose, dtype=float)
         origin   = pose[:3, 3]
         rotation = pose[:3, :3]
 
-        pattern    = list(ZigZagScanPattern())
-        azimuths   = np.array([p[0] for p in pattern])   # (15000,)
-        elevations = np.array([p[1] for p in pattern])   # (15000,)
-
-        # (15000, 5) — broadcast channels across all scan steps
-        az = azimuths[:, np.newaxis] + self.channels[np.newaxis, :]
-        el = elevations[:, np.newaxis] * np.ones((1, 5))
+        pattern = list(self.it_scan)  # each item is a list of 5 points [(az, el), ...]
+        az = np.array([[p[0] for p in block] for block in pattern])   # shape: (15000, 5)
+        el = np.array([[p[1] for p in block] for block in pattern]) # shape: (15000, 5)
 
         # local directions (15000, 5, 3)
         x = np.cos(el) * np.cos(az)
@@ -74,9 +66,9 @@ class LiDARModel:
         origin   = pose[:3, 3]
         rotation = pose[:3, :3]
 
-        azimuth, elevation = next(self.scan_pattern)
-        az = azimuth + self.channels   # (5,)
-        el = np.full(5, elevation)
+        ray_angles = next(self.it_scan) # (5, 2): channel, (azimuth, elevation)
+        az = ray_angles[:,0]
+        el = ray_angles[:,1]
 
         x = np.cos(el) * np.cos(az)
         y = np.cos(el) * np.sin(az)
