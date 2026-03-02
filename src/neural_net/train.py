@@ -1,116 +1,66 @@
 """
-Training script for PointNetPP cone classifier.
-Handles ~1% positive rate with pos_weight + oversampling.
-Supports resuming from a checkpoint with resume="model.pt".
-
-Dataset layout expected:
-    dataset/
-        track_00/
-            frame_000.npz   # data: (600, 125, 3), labels: (600, 125)
-            frame_001.npz
-            ...
-        track_01/
-            ...
+Usage:
+    python train.py configs.dilated_5ch
+    python train.py configs.dilated_5ch --resume checkpoints/dilated_5ch.pt
 """
-from pathlib import Path
-import glob
-import numpy as np
+
+import os
+import sys
+import importlib
+import argparse
 import torch
-from torch.utils.data import Dataset, DataLoader, WeightedRandomSampler, random_split
-from neural_net.model import MiniPointNet, PointNetLoss
+from torch.utils.data import DataLoader, WeightedRandomSampler, random_split
+
+from neural_net.dataset import LiDARPacketDataset
+from neural_net.models import build_model, WeightedBCELoss
 
 
-# ── Dataset ────────────────────────────────────────────────────────────────────
-
-class LiDARPacketDataset(Dataset):
-    def __init__(self, dataset_path: str):
-        self.samples  = []
-        self.has_cone = []
-
-        for path in sorted(glob.glob(f"{dataset_path}/**/*.npz", recursive=True)):
-            f = np.load(path)
-            data   = f["data"].astype(np.float32)    # (600, 125, 3)
-            labels = f["labels"].astype(np.float32)  # (600, 125)
-            for data_packet, label_packet in zip(data, labels):
-                if np.sum(label_packet) == 0 and np.random.rand() > 0.01:
-                    continue
-                self.samples.append((data_packet, label_packet))
-                self.has_cone.append(bool(label_packet.any()))
-
-        n_pos = sum(self.has_cone)
-        print(f"Loaded {len(self.samples):,} packets — "
-              f"{n_pos:,} with cones ({n_pos/len(self.samples):.1%}), "
-              f"{len(self.samples)-n_pos:,} without")
-
-        all_labels = np.concatenate([s[1] for s in self.samples])
-        pos_rate = all_labels.mean()
-        print(f"Point-level positive rate: {pos_rate:.2%}  "
-              f"→ recommended pos_weight: {(1-pos_rate)/pos_rate:.0f}")
-
-    def __len__(self):
-        return len(self.samples)
-
-    def __getitem__(self, idx):
-        data, labels = self.samples[idx]
-        return torch.from_numpy(data), torch.from_numpy(labels)
-
-
-# ── Training ───────────────────────────────────────────────────────────────────
-
-def train(
-    dataset_path      = "dataset",
-    epochs            = 40,
-    batch_size        = 64,
-    lr                = 1e-3,
-    pos_weight        = 42.0,
-    oversample_factor = 10,
-    threshold         = 0.3,
-    val_split         = 0.1,
-    save_path         = "model.pt",
-    resume            = None,    # set to "model.pt" to continue from checkpoint
-):
+def train(config, dataset_path="dataset", resume=None):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
     # data
-    full_dataset = LiDARPacketDataset(dataset_path)
-    n_val   = int(len(full_dataset) * val_split)
+    full_dataset = LiDARPacketDataset(dataset_path, config["features"])
+    n_val   = int(len(full_dataset) * config["val_split"])
     n_train = len(full_dataset) - n_val
     train_ds, val_ds = random_split(full_dataset, [n_train, n_val])
 
     train_weights = [
-        oversample_factor if full_dataset.has_cone[i] else 1.0
+        config["oversample_factor"] if full_dataset.has_cone[i] else 1.0
         for i in train_ds.indices
     ]
     sampler = WeightedRandomSampler(train_weights, num_samples=len(train_weights), replacement=True)
 
-    train_loader = DataLoader(train_ds, batch_size=batch_size, sampler=sampler,  num_workers=4, pin_memory=True)
-    val_loader   = DataLoader(val_ds,   batch_size=batch_size, shuffle=False,    num_workers=4, pin_memory=True)
+    train_loader = DataLoader(train_ds, batch_size=config["batch_size"], sampler=sampler,  num_workers=4, pin_memory=True)
+    val_loader   = DataLoader(val_ds,   batch_size=config["batch_size"], shuffle=False,    num_workers=4, pin_memory=True)
 
-    # model, optimizer, scheduler
-    model     = MiniPointNet().to(device)
-    criterion = PointNetLoss(pos_weight=pos_weight).to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    # model
+    model     = build_model(config).to(device)
+    criterion = WeightedBCELoss(pos_weight=config["pos_weight"]).to(device)
+    optimizer = torch.optim.Adam(model.parameters(), lr=config["lr"])
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=4, factor=0.5)
 
     start_epoch = 1
     best_f1     = 0.0
+    threshold   = config["threshold"]
 
-    # ── resume from checkpoint ──────────────────────────────────────────────
-    if resume is not None and Path(resume).is_file():
+    # resume
+    if resume is not None:
         checkpoint = torch.load(resume, map_location=device)
-        model.load_state_dict(checkpoint["model_state"])
-        optimizer.load_state_dict(checkpoint["optimizer_state"])
-        scheduler.load_state_dict(checkpoint["scheduler_state"])
-        start_epoch = checkpoint["epoch"] + 1
-        best_f1     = checkpoint["f1"]
-        threshold   = checkpoint.get("threshold", threshold)
-        print(f"Resumed from {resume}  "
-              f"(epoch {checkpoint['epoch']}, F1={best_f1:.3f}) "
-              f"— continuing from epoch {start_epoch}")
-    # ────────────────────────────────────────────────────────────────────────
+        if "model_state" in checkpoint:
+            model.load_state_dict(checkpoint["model_state"])
+            optimizer.load_state_dict(checkpoint["optimizer_state"])
+            scheduler.load_state_dict(checkpoint["scheduler_state"])
+            start_epoch = checkpoint["epoch"] + 1
+            best_f1     = checkpoint["f1"]
+            threshold   = checkpoint.get("threshold", threshold)
+        else:
+            model.load_state_dict(checkpoint)
+        print(f"Resumed from {resume} — continuing from epoch {start_epoch}")
 
-    for epoch in range(start_epoch, start_epoch + epochs):
+    os.makedirs(os.path.dirname(config["save_path"]), exist_ok=True)
+
+    for epoch in range(start_epoch, start_epoch + config["epochs"]):
         # train
         model.train()
         train_loss = 0.0
@@ -159,11 +109,19 @@ def train(
                 "epoch":           epoch,
                 "f1":              f1,
                 "threshold":       threshold,
-            }, save_path)
+                "config":          config,
+            }, config["save_path"])
             print(f"  ✓ saved (F1={f1:.3f})")
 
     print(f"\nDone. Best F1: {best_f1:.3f}")
 
 
 if __name__ == "__main__":
-    train(resume="model.pt", lr=1e-4, epochs=2000)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("config",           help="config module, e.g. neural_net.configs.dilated_5ch")
+    parser.add_argument("--dataset",        default="dataset")
+    parser.add_argument("--resume",         default=None)
+    args = parser.parse_args()
+
+    cfg = importlib.import_module(args.config).config
+    train(cfg, dataset_path=args.dataset, resume=args.resume)

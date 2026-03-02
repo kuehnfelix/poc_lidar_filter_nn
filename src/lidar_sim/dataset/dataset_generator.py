@@ -6,7 +6,7 @@ from lidar_sim.core.ray import Ray
 from lidar_sim.core.types import ObjectType
 from lidar_sim.scene.scene_generator import SceneGenerator
 from lidar_sim.lidar.lidar_model import LiDARModel
-from lidar_sim.lidar.zig_zag_scan_pattern import ZigZagScanPattern
+from lidar_sim.lidar.real_recorded_scan_pattern import RealRecordedScanPattern
 from lidar_sim.scene.track import Track
 
 
@@ -19,7 +19,7 @@ class DatasetGenerator:
 
     def __init__(self,
                  scene_generator=SceneGenerator(),
-                 lidar_model=LiDARModel(scan_pattern=ZigZagScanPattern()),
+                 lidar_model=LiDARModel(scan_pattern=RealRecordedScanPattern("recorded_lidar_packets")),
                  dataset_path="dataset"):
         self.scene_generator = scene_generator
         self.scene           = scene_generator.generate_scene()
@@ -28,7 +28,7 @@ class DatasetGenerator:
 
     def generate_dataset(self, num_tracks=2, frames_per_track=100):
         start_time = time.time()
-        for track_idx in range(num_tracks):
+        for track_idx in range(7, num_tracks):
             print(f"Generating track {track_idx+1}/{num_tracks}...")
             self.new_scene()
             track = self.scene_generator.track
@@ -78,7 +78,7 @@ class DatasetGenerator:
 
                     distance = 0
                     if hit.hit:
-                        distance = hit.distance                        
+                        distance = hit.distance * np.random.normal(1, 1.0005) # add some noise to the distance measurement
                         label_packets[packet_idx, store_i] = 1 if hit.object_type == ObjectType.CONE else 0
                         
                     data_packets[packet_idx, store_i]  = (ray.azimuth, ray.elevation, distance)
@@ -88,4 +88,4 @@ class DatasetGenerator:
 
 if __name__ == "__main__":
     generator = DatasetGenerator()
-    generator.generate_dataset(num_tracks=10, frames_per_track=200)
+    generator.generate_dataset(num_tracks=30, frames_per_track=200)
